@@ -1,0 +1,30 @@
+plugins { id 'java' }
+
+repositories {
+    maven { url = 'https://repo.runelite.net' }
+    mavenCentral()
+}
+
+def runeLiteVersion = '1.13.4'
+dependencies {
+    compileOnly "net.runelite:client:${runeLiteVersion}"
+    testImplementation "net.runelite:client:${runeLiteVersion}"
+    testImplementation "net.runelite:jshell:${runeLiteVersion}"
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.mockito:mockito-core:4.11.0'
+}
+group = 'com.dayssincedeath'
+version = '1.0.0'
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.release.set(11)
+}
+tasks.register('run', JavaExec) {
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.dayssincedeath.DaysSinceDeathLauncher'
+    jvmArgs '-ea'
+    if (System.getProperty('os.name').toLowerCase(java.util.Locale.ROOT).contains('mac')) {
+        jvmArgs '--add-opens=java.desktop/com.apple.eawt=ALL-UNNAMED'
+    }
+    args '--developer-mode', '--debug'
+}
