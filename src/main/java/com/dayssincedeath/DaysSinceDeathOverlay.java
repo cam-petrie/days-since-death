@@ -1,13 +1,11 @@
 package com.dayssincedeath;
 
-import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Graphics2D;
 import javax.inject.Inject;
 import net.runelite.client.ui.overlay.OverlayPanel;
 import net.runelite.client.ui.overlay.OverlayPosition;
 import net.runelite.client.ui.overlay.components.LineComponent;
-import net.runelite.client.ui.overlay.components.TitleComponent;
 
 final class DaysSinceDeathOverlay extends OverlayPanel
 {
@@ -27,18 +25,11 @@ final class DaysSinceDeathOverlay extends OverlayPanel
     {
         DeathRecord record = plugin.visibleRecord();
         if (!config.showOverlay() || record == null) { return null; }
-        panelComponent.setPreferredSize(new Dimension(230, 0));
-        panelComponent.getChildren().add(TitleComponent.builder()
-                .text(record.lastDeath == 0 ? "Tracking since first use" : "Since last observed death")
-                .color(new Color(220, 190, 115)).build());
-        long now = plugin.now();
-        panelComponent.getChildren().add(LineComponent.builder().left("Elapsed")
-                .right(config.displayUnit().format(record.elapsed(now))).build());
-        if (record.lastDeath > 0)
-        {
-            panelComponent.getChildren().add(LineComponent.builder().left("Best recorded")
-                    .right(config.displayUnit().format(record.best(now))).build());
-        }
+        String counter = record.lastDeath == 0 ? "Unknown" : config.displayUnit().format(record.elapsed(plugin.now()));
+        int width = graphics.getFontMetrics().stringWidth("Last Death")
+                + graphics.getFontMetrics().stringWidth(counter) + 20;
+        panelComponent.setPreferredSize(new Dimension(Math.max(130, width), 0));
+        panelComponent.getChildren().add(LineComponent.builder().left("Last Death").right(counter).build());
         return super.render(graphics);
     }
 }

@@ -6,7 +6,7 @@ sign, with separate records for each RuneScape character.
 
 ## Features
 
-- An optional compact counter and a clock-icon sidebar with details.
+- An optional single-line `Last Death` counter and a clock-icon sidebar with details.
 - Automatic duration breakdown or total hours, days, weeks, or years.
 - Longest recorded streak, including your current streak if it is the longest.
 - Last observed death date and total observed deaths.
@@ -20,6 +20,9 @@ sign, with separate records for each RuneScape character.
 This is **wall-clock time**, including time logged out. Years mean 365 days;
 they are duration units rather than calendar anniversaries. The timer is shown
 only when a character is logged in and its record has loaded.
+
+The compact box shows `Last Death: Unknown` until a death has been observed;
+the sidebar still shows elapsed time since tracking started.
 
 The plugin cannot recover deaths that happened before installation, while it
 was disabled, or while playing on another client/device. “Observed” is part of
