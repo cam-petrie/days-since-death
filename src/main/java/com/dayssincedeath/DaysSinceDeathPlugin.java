@@ -269,6 +269,7 @@ public class DaysSinceDeathPlugin extends Plugin
         configManager.setConfiguration(group, "timeBasis", s.basis);
         configManager.setConfiguration(group, "showOverlay", s.showOverlay);
         configManager.setConfiguration(group, "showLabel", s.showLabel);
+        configManager.setConfiguration(group, "labelStyle", s.labelStyle);
         configManager.setConfiguration(group, "showSeconds", s.showSeconds);
         configManager.setConfiguration(group, "ignoreLms", s.ignoreLms);
         configManager.setConfiguration(group, "ignoreArena", s.ignoreArena);

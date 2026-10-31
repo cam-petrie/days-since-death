@@ -42,9 +42,13 @@ written only when you choose a destination. Reset samples restores the fixture.
 7. **Coverage:** last observed online time and the most recent 20 unobserved
    intervals. Ordinary offline time is included in these gaps; a gap does not
    imply a death happened. Deaths on mobile/other clients remain unknown.
-8. **Compact display:** label visibility, seconds, text colour, background opacity,
+8. **Compact display:** full label, `LD`, clock icon, clock + `LD`, or no label;
+   seconds, text colour, background opacity,
    selected duration units, wall-clock/logged-in basis, and a hover tooltip. The
    in-game box remains a single line. The sidebar includes a counter preview.
+   Automatic format includes seconds at every duration when enabled. Total-unit
+   formats remain numeric and disable the seconds checkbox in Setup. Label and
+   seconds toggles apply immediately; hiding the label also removes its space.
 9. **Streak card:** manually preview and save a PNG. Character name is hidden by
    default; there is no upload or automatic sharing. The card identifies manual
    dates/corrections and explains observation limits.

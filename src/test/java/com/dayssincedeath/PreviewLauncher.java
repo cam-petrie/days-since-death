@@ -98,6 +98,21 @@ public final class PreviewLauncher
                     }
                     ImageIO.write(ShareCard.render(demo.view(), false), "png", folder.resolve("card-private.png").toFile());
                     ImageIO.write(ShareCard.render(demo.view(), true), "png", folder.resolve("card-named.png").toFile());
+                    BufferedImage counters = new BufferedImage(520, 200, BufferedImage.TYPE_INT_RGB);
+                    Graphics2D cg = counters.createGraphics();
+                    cg.setColor(new Color(38, 42, 45)); cg.fillRect(0, 0, 520, 200);
+                    cg.setFont(new java.awt.Font(java.awt.Font.SANS_SERIF, java.awt.Font.PLAIN, 13));
+                    ViewSettings counterSettings = new ViewSettings();
+                    for (int i = 0; i < 5; i++)
+                    {
+                        counterSettings.showLabel = i < 4;
+                        counterSettings.labelStyle = LabelStyle.values()[Math.min(i, 3)];
+                        Graphics2D row = (Graphics2D) cg.create(12, 8 + i * 38, 500, 32);
+                        CounterRenderer.render(row, counterSettings, "8d 2h 3m 9s");
+                        row.setColor(Color.LIGHT_GRAY); row.drawString(i == 4 ? "No label" : counterSettings.labelStyle.name(), 320, 18);
+                        row.dispose();
+                    }
+                    cg.dispose(); ImageIO.write(counters, "png", folder.resolve("counter-styles.png").toFile());
                     System.out.println("Preview renders: " + folder.toAbsolutePath());
                     return;
                 }

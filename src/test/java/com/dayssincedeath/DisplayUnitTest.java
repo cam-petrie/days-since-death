@@ -27,4 +27,17 @@ public class DisplayUnitTest
         assertEquals("2.00 weeks", DisplayUnit.WEEKS.format(14 * DAY));
         assertEquals("2.00 years", DisplayUnit.YEARS.format(730 * DAY));
     }
+
+    @Test
+    public void secondsToggleWorksBeyondAnHourAndAcrossAllAutomaticUnits()
+    {
+        long value = 373 * DAY + 2 * HOUR + 3 * 60_000 + 9000;
+        assertEquals("1y 1w 1d 2h 3m 9s", DisplayUnit.AUTOMATIC.format(value, true));
+        assertEquals("1y 1w 1d", DisplayUnit.AUTOMATIC.format(value, false));
+        assertEquals("1w 1d 2h 3m 9s", DisplayUnit.AUTOMATIC.format(8 * DAY + 2 * HOUR + 189_000, true));
+        assertEquals("1d 2h 3m 9s", DisplayUnit.AUTOMATIC.format(DAY + 2 * HOUR + 189_000, true));
+        assertEquals("2h 3m 9s", DisplayUnit.AUTOMATIC.format(2 * HOUR + 189_000, true));
+        assertEquals("2h 3m", DisplayUnit.AUTOMATIC.format(2 * HOUR + 189_000, false));
+        assertEquals("3m", DisplayUnit.AUTOMATIC.format(189_000, false));
+    }
 }

@@ -38,7 +38,7 @@ final class DaysSinceDeathPanel extends PluginPanel
     private TrackerView view;
     private final JLabel title = new JLabel("Days Since Death");
     private final JLabel counter = new JLabel("Log in to begin");
-    private final JLabel overlayPreview = new JLabel(" ");
+    private final CounterPreview overlayPreview = new CounterPreview();
     private final JTextArea summary = text();
     private final JTextArea coverage = text();
     private final JLabel status = new JLabel(" ");
@@ -58,6 +58,7 @@ final class DaysSinceDeathPanel extends PluginPanel
     private final JComboBox<TimeBasis> basis = new JComboBox<>(TimeBasis.values());
     private final JCheckBox showOverlay = new JCheckBox("Show counter");
     private final JCheckBox showLabel = new JCheckBox("Show Last Death label");
+    private final JComboBox<LabelStyle> labelStyle = new JComboBox<>(LabelStyle.values());
     private final JCheckBox showSeconds = new JCheckBox("Show seconds");
     private final JCheckBox lms = new JCheckBox("Exclude LMS deaths");
     private final JCheckBox arena = new JCheckBox("Exclude PvP Arena deaths");
@@ -86,8 +87,7 @@ final class DaysSinceDeathPanel extends PluginPanel
         counter.setFont(counter.getFont().deriveFont(Font.BOLD, 22f));
         header.add(preview); header.add(title); header.add(counter);
         overlayPreview.setToolTipText("Preview of the compact in-game counter");
-        overlayPreview.setBorder(BorderFactory.createEmptyBorder(4, 6, 4, 6));
-        overlayPreview.setOpaque(true); header.add(overlayPreview);
+        header.add(overlayPreview);
         add(header, BorderLayout.NORTH);
 
         JTabbedPane tabs = new JTabbedPane();
@@ -164,7 +164,18 @@ final class DaysSinceDeathPanel extends PluginPanel
         JPanel p = vertical();
         p.add(new JLabel("Time units")); p.add(unit);
         p.add(new JLabel("Counter basis")); p.add(basis);
-        p.add(showOverlay); p.add(showLabel); p.add(showSeconds);
+        p.add(showOverlay); p.add(showLabel);
+        p.add(new JLabel("Label style")); p.add(labelStyle); p.add(showSeconds);
+        labelStyle.setRenderer(new DefaultListCellRenderer()
+        {
+            @Override public Component getListCellRendererComponent(JList<?> list, Object value, int index, boolean selected, boolean focus)
+            {
+                String text = value == LabelStyle.LD ? "LD" : value == LabelStyle.CLOCK ? "Clock icon"
+                        : value == LabelStyle.CLOCK_LD ? "Clock icon + LD" : "Last Death";
+                return super.getListCellRendererComponent(list, text, index, selected, focus);
+            }
+        });
+        showSeconds.setToolTipText("Applies to Automatic format at every duration. Total-unit formats stay numeric.");
         p.add(lms); p.add(arena);
         JTextArea safe = text();
         safe.setRows(6);
@@ -178,15 +189,26 @@ final class DaysSinceDeathPanel extends PluginPanel
         });
         p.add(chooseColour);
         JButton apply = new JButton("Apply options");
-        apply.addActionListener(e -> {
-            ViewSettings s = new ViewSettings();
-            s.unit = (DisplayUnit) unit.getSelectedItem(); s.basis = (TimeBasis) basis.getSelectedItem();
-            s.showOverlay = showOverlay.isSelected(); s.showLabel = showLabel.isSelected();
-            s.showSeconds = showSeconds.isSelected(); s.ignoreLms = lms.isSelected(); s.ignoreArena = arena.isSelected();
-            s.opacity = opacity.getValue(); s.colour = colour; actions.settings(s);
-        });
+        apply.addActionListener(e -> sendOptions());
+        java.awt.event.ActionListener instant = e -> {
+            showSeconds.setEnabled(unit.getSelectedItem() == DisplayUnit.AUTOMATIC);
+            labelStyle.setEnabled(showLabel.isSelected());
+            if (optionsLoaded) { sendOptions(); }
+        };
+        for (JCheckBox check : new JCheckBox[]{showOverlay, showLabel, showSeconds, lms, arena}) { check.addActionListener(instant); }
+        unit.addActionListener(instant); basis.addActionListener(instant); labelStyle.addActionListener(instant);
         p.add(apply);
         return p;
+    }
+
+    private void sendOptions()
+    {
+        ViewSettings s = new ViewSettings();
+        s.unit = (DisplayUnit) unit.getSelectedItem(); s.basis = (TimeBasis) basis.getSelectedItem();
+        s.showOverlay = showOverlay.isSelected(); s.showLabel = showLabel.isSelected();
+        s.labelStyle = (LabelStyle) labelStyle.getSelectedItem();
+        s.showSeconds = showSeconds.isSelected(); s.ignoreLms = lms.isSelected(); s.ignoreArena = arena.isSelected();
+        s.opacity = opacity.getValue(); s.colour = colour; actions.settings(s);
     }
 
     void update(TrackerView next)
@@ -198,6 +220,8 @@ final class DaysSinceDeathPanel extends PluginPanel
             ViewSettings s = next.settings;
             unit.setSelectedItem(s.unit); basis.setSelectedItem(s.basis);
             showOverlay.setSelected(s.showOverlay); showLabel.setSelected(s.showLabel); showSeconds.setSelected(s.showSeconds);
+            labelStyle.setSelectedItem(s.labelStyle); labelStyle.setEnabled(s.showLabel);
+            showSeconds.setEnabled(s.unit == DisplayUnit.AUTOMATIC);
             lms.setSelected(s.ignoreLms); arena.setSelected(s.ignoreArena); opacity.setValue(s.opacity); colour = s.colour;
             optionsLoaded = true;
         }
@@ -206,9 +230,7 @@ final class DaysSinceDeathPanel extends PluginPanel
         title.setText(available ? next.character : "Days Since Death");
         counter.setText(available ? next.settings.counter(s, next.now) : next.message);
         counter.setToolTipText(counter.getText());
-        overlayPreview.setText(available ? (next.settings.showLabel ? "Last Death   " : "") + next.settings.counter(s, next.now) : "Last Death   Unknown");
-        overlayPreview.setForeground(next.settings.colour);
-        overlayPreview.setBackground(new Color(25, 25, 25, Math.max(0, Math.min(255, next.settings.opacity))));
+        overlayPreview.update(next.settings, available ? next.settings.counter(s, next.now) : "Unknown");
         overlayPreview.setVisible(next.settings.showOverlay);
         overlayPreview.setMaximumSize(overlayPreview.getPreferredSize());
         undo.setEnabled(available && s.undo != null);
@@ -381,4 +403,20 @@ final class DaysSinceDeathPanel extends PluginPanel
         a.setOpaque(false); a.setBorder(BorderFactory.createEmptyBorder(6, 4, 6, 4)); return a;
     }
     static String stamp(long at) { return DATE.format(Instant.ofEpochMilli(at).atZone(ZoneId.systemDefault())); }
+
+    private static final class CounterPreview extends JComponent
+    {
+        private ViewSettings settings = new ViewSettings();
+        private String counter = "Unknown";
+        CounterPreview() { setFont(UIManager.getFont("Label.font")); setOpaque(false); }
+        void update(ViewSettings settings, String counter)
+        { this.settings = settings; this.counter = counter; revalidate(); repaint(); }
+        @Override public Dimension getPreferredSize()
+        { return CounterRenderer.size(getFontMetrics(getFont()), settings, counter); }
+        @Override protected void paintComponent(java.awt.Graphics graphics)
+        {
+            java.awt.Graphics2D g = (java.awt.Graphics2D) graphics.create();
+            try { CounterRenderer.render(g, settings, counter); } finally { g.dispose(); }
+        }
+    }
 }

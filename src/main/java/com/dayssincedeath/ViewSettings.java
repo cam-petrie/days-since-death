@@ -8,6 +8,7 @@ final class ViewSettings
     TimeBasis basis = TimeBasis.REAL_WORLD;
     boolean showOverlay = true;
     boolean showLabel = true;
+    LabelStyle labelStyle = LabelStyle.FULL;
     boolean showSeconds = true;
     boolean ignoreLms;
     boolean ignoreArena;
@@ -19,6 +20,7 @@ final class ViewSettings
         ViewSettings s = new ViewSettings();
         s.unit = c.displayUnit(); s.basis = c.timeBasis(); s.showOverlay = c.showOverlay();
         s.showLabel = c.showLabel(); s.showSeconds = c.showSeconds();
+        s.labelStyle = c.labelStyle();
         s.ignoreLms = c.ignoreLms(); s.ignoreArena = c.ignoreArena();
         s.colour = c.textColor(); s.opacity = c.backgroundOpacity();
         return s;
