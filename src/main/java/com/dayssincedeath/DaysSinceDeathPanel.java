@@ -106,7 +106,10 @@ final class DaysSinceDeathPanel extends PluginPanel
             TrackerView captured = view;
             if (captured != null && JOptionPane.showConfirmDialog(this,
                     "Restore the streak before the last counted death?\nThe entry stays in history as UNDONE.",
-                    "Undo death", JOptionPane.YES_NO_OPTION) == JOptionPane.YES_OPTION)
+                    "Undo death", JOptionPane.YES_NO_OPTION) == JOptionPane.YES_OPTION
+                    && JOptionPane.showConfirmDialog(this,
+                    "Are you absolutely sure you're not just bad?",
+                    "One last check", JOptionPane.YES_NO_OPTION) == JOptionPane.YES_OPTION)
             { actions.undo(captured.profile); }
         });
         manual.addActionListener(e -> manualDate());
