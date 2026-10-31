@@ -14,10 +14,15 @@ dependencies {
     testImplementation 'org.mockito:mockito-core:4.11.0'
 }
 group = 'com.dayssincedeath'
-version = '1.0.0'
+version = '2.0.0-local'
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
     options.release.set(11)
+}
+
+tasks.register('preview', JavaExec) {
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.dayssincedeath.PreviewLauncher'
 }
 tasks.register('run', JavaExec) {
     classpath = sourceSets.test.runtimeClasspath

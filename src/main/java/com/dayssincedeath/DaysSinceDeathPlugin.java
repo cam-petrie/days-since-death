@@ -2,115 +2,96 @@ package com.dayssincedeath;
 
 import com.google.gson.Gson;
 import com.google.inject.Provides;
-import java.awt.BorderLayout;
 import java.awt.Color;
-import java.awt.Font;
 import java.awt.Graphics2D;
-import java.awt.GridLayout;
 import java.awt.image.BufferedImage;
 import java.time.Clock;
-import java.time.Instant;
-import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
 import java.util.Objects;
 import javax.inject.Inject;
-import javax.swing.BorderFactory;
-import javax.swing.JLabel;
-import javax.swing.JPanel;
 import javax.swing.SwingUtilities;
 import javax.swing.Timer;
 import net.runelite.api.Client;
 import net.runelite.api.GameState;
 import net.runelite.api.Player;
+import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.events.ActorDeath;
 import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.GameTick;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
+import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.events.RuneScapeProfileChanged;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.ui.ClientToolbar;
 import net.runelite.client.ui.NavigationButton;
-import net.runelite.client.ui.PluginPanel;
 import net.runelite.client.ui.overlay.OverlayManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-@PluginDescriptor(name = "Days Since Death", description = "Track time since your last observed death and your longest recorded streak", tags = {"death", "streak", "timer", "statistics"})
+@PluginDescriptor(name = "Days Since Death (Local Preview)", internalName = "days-since-death-local",
+        description = "Local preview of death history, corrections, backups, and survival time", tags = {"death", "streak", "timer", "statistics"})
 public class DaysSinceDeathPlugin extends Plugin
 {
     private static final Logger log = LoggerFactory.getLogger(DaysSinceDeathPlugin.class);
-    static final String STATE_KEY = "record";
-
+    static final String STATE_KEY = "recordV2";
     @Inject Client client;
     @Inject ConfigManager configManager;
     @Inject Gson gson;
+    @Inject DaysSinceDeathConfig config;
     @Inject private ClientThread clientThread;
-    @Inject private DaysSinceDeathConfig config;
     @Inject private OverlayManager overlayManager;
     @Inject private DaysSinceDeathOverlay overlay;
     @Inject private ClientToolbar toolbar;
-
     Clock clock = Clock.systemUTC();
-    private volatile DeathRecord record;
-    private volatile boolean loggedIn;
-    private volatile String character = "";
-    private volatile String error;
+    private TrackerState state;
     private String loadedProfile;
+    private String character = "";
+    private String error;
+    private boolean collecting;
+    private boolean loggedIn;
     private boolean deathLatched;
+    private long lastHeartbeat;
+    private long nextSave;
+    private volatile TrackerView currentView;
+    private DaysSinceDeathPanel panel;
     private NavigationButton navigation;
     private Timer uiTimer;
-    private JLabel heading;
-    private JLabel elapsed;
-    private JLabel best;
-    private JLabel last;
-    private JLabel count;
 
     @Provides
-    DaysSinceDeathConfig provideConfig(ConfigManager manager)
-    {
-        return manager.getConfig(DaysSinceDeathConfig.class);
-    }
+    DaysSinceDeathConfig provideConfig(ConfigManager manager) { return manager.getConfig(DaysSinceDeathConfig.class); }
 
     @Override
     protected void startUp() throws Exception
     {
         overlayManager.add(overlay);
+        publish();
         onEdt(() -> {
-            PluginPanel panel = new PluginPanel() {};
-            panel.setLayout(new BorderLayout(0, 16));
-            panel.setBorder(BorderFactory.createEmptyBorder(12, 10, 12, 10));
-            JPanel details = new JPanel(new GridLayout(0, 1, 0, 12));
-            heading = new JLabel("Days Since Death");
-            heading.setForeground(new Color(220, 190, 115));
-            elapsed = new JLabel();
-            elapsed.setFont(elapsed.getFont().deriveFont(Font.BOLD, 19f));
-            best = new JLabel();
-            last = new JLabel();
-            count = new JLabel();
-            details.add(heading);
-            details.add(elapsed);
-            details.add(best);
-            details.add(last);
-            details.add(count);
-            panel.add(details, BorderLayout.NORTH);
-            JLabel note = new JLabel("<html>Wall-clock time, including offline time.<br><br>Only deaths seen while this plugin runs are recorded. Safe minigame deaths also count.<br><br>Choose hours, days, weeks, or years in plugin settings.</html>");
-            note.setForeground(Color.LIGHT_GRAY);
-            panel.add(note, BorderLayout.CENTER);
+            panel = new DaysSinceDeathPanel(new DaysSinceDeathPanel.Actions()
+            {
+                public void undo(String profile) { edit(profile, () -> state.undoDeath()); }
+                public void manualDate(String profile, long at) { edit(profile, () -> state.setManualDate(at, now())); }
+                public void note(String profile, String id, String text) { edit(profile, () -> state.setNote(id, text)); }
+                public void restore(String profile, TrackerState restored) { edit(profile, () -> restoreRecord(restored), true); }
+                public void recover(String profile) { edit(profile, () -> {
+                    String saved = configManager.getConfiguration(DaysSinceDeathConfig.GROUP, loadedProfile, "beforeRestore");
+                    if (saved == null) { throw new IllegalStateException("No pre-restore recovery snapshot has been saved yet"); }
+                    TrackerState recovered = gson.fromJson(saved, TrackerState.class);
+                    if (recovered == null) { throw new IllegalStateException("Recovery snapshot is empty"); }
+                    restoreRecord(recovered);
+                }, true); }
+                public void settings(ViewSettings options) { clientThread.invoke(() -> applyOptions(options)); }
+            }, gson);
             BufferedImage icon = new BufferedImage(32, 32, BufferedImage.TYPE_INT_ARGB);
             Graphics2D g = icon.createGraphics();
-            g.setColor(new Color(220, 190, 115));
-            g.drawOval(3, 3, 25, 25);
-            g.drawLine(16, 7, 16, 16);
-            g.drawLine(16, 16, 23, 19);
-            g.dispose();
-            navigation = NavigationButton.builder().tooltip("Days Since Death").icon(icon).panel(panel).priority(8).build();
+            g.setColor(new Color(220, 190, 115)); g.drawOval(3, 3, 25, 25);
+            g.drawLine(16, 7, 16, 16); g.drawLine(16, 16, 23, 19); g.dispose();
+            navigation = NavigationButton.builder().tooltip("Days Since Death · Local Preview")
+                    .icon(icon).panel(panel).priority(8).build();
             toolbar.addNavigation(navigation);
-            uiTimer = new Timer(1000, e -> refreshPanel());
-            uiTimer.start();
-            refreshPanel();
+            uiTimer = new Timer(1000, e -> panel.update(view())); uiTimer.start();
+            panel.update(view());
         });
         clientThread.invoke(this::ensureProfile);
     }
@@ -119,14 +100,12 @@ public class DaysSinceDeathPlugin extends Plugin
     protected void shutDown() throws Exception
     {
         overlayManager.remove(overlay);
-        loggedIn = false;
-        record = null;
-        loadedProfile = null;
-        deathLatched = false;
-        error = null;
+        pauseTracking();
+        loadedProfile = null; state = null; publish();
         onEdt(() -> {
             if (uiTimer != null) { uiTimer.stop(); uiTimer = null; }
             if (navigation != null) { toolbar.removeNavigation(navigation); navigation = null; }
+            panel = null;
         });
     }
 
@@ -134,32 +113,33 @@ public class DaysSinceDeathPlugin extends Plugin
     public void onGameTick(GameTick event)
     {
         ensureProfile();
+        heartbeat();
         Player player = client.getLocalPlayer();
         if (player != null && !player.isDead()) { deathLatched = false; }
+        if (collecting && state != null && now() >= nextSave) { save(); nextSave = now() + 15_000; }
+        publish();
     }
 
     @Subscribe
     public void onGameStateChanged(GameStateChanged event)
     {
-        loggedIn = event.getGameState() == GameState.LOGGED_IN;
-        if (loggedIn) { ensureProfile(); }
-        else if (event.getGameState() == GameState.LOGIN_SCREEN)
-        {
-            record = null;
-            loadedProfile = null;
-            deathLatched = false;
-            error = null;
-        }
+        if (event.getGameState() == GameState.LOGGED_IN) { ensureProfile(); }
+        else { pauseTracking(); }
+        publish();
     }
 
     @Subscribe
     public void onRuneScapeProfileChanged(RuneScapeProfileChanged event)
     {
-        // Do not display or write the previous character's state during a switch.
-        record = null;
-        loadedProfile = null;
-        deathLatched = false;
-        error = null;
+        pauseTracking(); loadedProfile = null; state = null; error = null; deathLatched = false;
+        publish();
+    }
+
+    @Subscribe
+    public void onConfigChanged(ConfigChanged event)
+    {
+        if (DaysSinceDeathConfig.GROUP.equals(event.getGroup()) && !STATE_KEY.equals(event.getKey()))
+        { clientThread.invoke(this::publish); }
     }
 
     @Subscribe
@@ -168,83 +148,154 @@ public class DaysSinceDeathPlugin extends Plugin
         Player player = client.getLocalPlayer();
         if (player == null || event.getActor() != player) { return; }
         ensureProfile();
-        if (!loggedIn || record == null || deathLatched) { return; }
-        deathLatched = true;
-        record = record.died(now());
-        save();
+        if (!collecting || state == null || deathLatched) { return; }
+        heartbeat(); deathLatched = true;
+        String reason = SafeDeathPolicy.ignoredReason(client.getWorldType(), config.ignoreLms(), config.ignoreArena());
+        state.died(now(), location(player), reason);
+        save(); publish();
+    }
+
+    private String location(Player player)
+    {
+        WorldPoint point = player.getWorldLocation();
+        if (client.isInInstancedRegion() && player.getLocalLocation() != null)
+        { point = WorldPoint.fromLocalInstance(client, player.getLocalLocation()); }
+        return point == null ? "Location unavailable" : "Region " + point.getRegionID()
+                + " · " + point.getX() + ", " + point.getY() + " · level " + point.getPlane();
     }
 
     void ensureProfile()
     {
-        loggedIn = client.getGameState() == GameState.LOGGED_IN;
-        if (!loggedIn) { return; }
+        if (client.getGameState() != GameState.LOGGED_IN) { pauseTracking(); publish(); return; }
         String key = configManager.getRSProfileKey();
-        if (key == null)
+        if (key == null) { pauseTracking(); loadedProfile = null; state = null; publish(); return; }
+        if (!Objects.equals(key, loadedProfile))
         {
-            record = null;
-            loadedProfile = null;
-            return;
+            pauseTracking(); loadedProfile = key; state = null; deathLatched = false; error = null;
+            String saved = configManager.getConfiguration(DaysSinceDeathConfig.GROUP, key, STATE_KEY);
+            try
+            {
+                if (saved != null)
+                {
+                    state = gson.fromJson(saved, TrackerState.class);
+                    if (state == null) { throw new IllegalArgumentException("Empty record"); }
+                    state.validate(now());
+                }
+                else
+                {
+                    // Seed the preview read-only from the published plugin; never write its group.
+                    String original = configManager.getConfiguration("dayssincedeath", key, "record");
+                    state = original == null ? TrackerState.start(now())
+                            : TrackerState.migrate(gson.fromJson(original, DeathRecord.class), now());
+                }
+            }
+            catch (RuntimeException e)
+            {
+                state = null; error = "Saved record unreadable; left untouched.";
+                log.warn("Could not load Days Since Death preview record", e);
+            }
         }
         Player player = client.getLocalPlayer();
-        character = player == null ? "" : player.getName();
-        if (Objects.equals(key, loadedProfile)) { return; }
-        loadedProfile = key;
-        record = null;
-        deathLatched = false;
-        error = null;
-        String saved = configManager.getRSProfileConfiguration(DaysSinceDeathConfig.GROUP, STATE_KEY);
-        if (saved == null)
+        character = player == null || player.getName() == null ? "Character" : player.getName();
+        loggedIn = true;
+        if (state != null && !collecting)
         {
-            record = DeathRecord.start(now());
-            save();
-            return;
+            state.resumed(now()); collecting = true; lastHeartbeat = now(); nextSave = now() + 15_000; save();
         }
-        try
-        {
-            DeathRecord restored = gson.fromJson(saved, DeathRecord.class);
-            if (restored == null || !restored.valid()) { throw new IllegalArgumentException("Invalid death record"); }
-            record = restored;
-        }
-        catch (RuntimeException e)
-        {
-            // Preserve the original saved value for recovery instead of resetting it.
-            error = "Saved record unreadable; left untouched.";
-            log.warn("Days Since Death could not read the saved record", e);
-        }
+        publish();
+    }
+
+    private void heartbeat()
+    {
+        if (!collecting || state == null) { return; }
+        long timestamp = now();
+        long delta = timestamp - lastHeartbeat;
+        if (lastHeartbeat > 0 && delta >= 0 && delta <= 5000) { state.addPlaytime(delta); }
+        else if (delta > 5000) { state.resumed(timestamp); }
+        state.lastSeen = Math.max(state.lastSeen, timestamp); lastHeartbeat = timestamp;
+    }
+
+    private void pauseTracking()
+    {
+        if (collecting && state != null) { heartbeat(); collecting = false; save(); }
+        collecting = false; lastHeartbeat = 0;
+        loggedIn = false;
     }
 
     private void save()
     {
-        if (record != null && Objects.equals(loadedProfile, configManager.getRSProfileKey()))
-        {
-            configManager.setRSProfileConfiguration(DaysSinceDeathConfig.GROUP, STATE_KEY, gson.toJson(record));
-        }
+        if (state != null && loadedProfile != null)
+        { configManager.setConfiguration(DaysSinceDeathConfig.GROUP, loadedProfile, STATE_KEY, gson.toJson(state)); }
+    }
+
+    private void edit(String profile, Runnable mutation)
+    {
+        edit(profile, mutation, false);
+    }
+
+    private void edit(String profile, Runnable mutation, boolean allowMissing)
+    {
+        clientThread.invoke(() -> { applyEdit(profile, mutation, allowMissing); });
+    }
+
+    boolean applyEdit(String profile, Runnable mutation, boolean allowMissing)
+    {
+            TrackerState previous = state == null ? null : state.copy();
+            try
+            {
+                if (profile == null || !Objects.equals(profile, loadedProfile)
+                        || !Objects.equals(profile, configManager.getRSProfileKey()) || !loggedIn)
+                { throw new IllegalStateException("Character changed. Reopen the action for the current character."); }
+                if (state == null && !allowMissing) { throw new IllegalStateException("No readable record is loaded"); }
+                heartbeat(); previous = state == null ? null : state.copy();
+                mutation.run(); state.validate(now()); save(); publish(); notifyPanel("Saved locally for this preview");
+                return true;
+            }
+            catch (RuntimeException e) { state = previous; publish(); notifyPanel(e.getMessage()); return false; }
+    }
+
+    private void restoreRecord(TrackerState restored)
+    {
+        restored.validate(now());
+        if (state != null) { configManager.setConfiguration(DaysSinceDeathConfig.GROUP, loadedProfile, "beforeRestore", gson.toJson(state)); }
+        state = restored.copy(); state.undo = null; state.corrected = true;
+        state.resumed(now()); lastHeartbeat = now(); collecting = true; error = null;
+    }
+
+    private void applyOptions(ViewSettings s)
+    {
+        String group = DaysSinceDeathConfig.GROUP;
+        configManager.setConfiguration(group, "displayUnit", s.unit);
+        configManager.setConfiguration(group, "timeBasis", s.basis);
+        configManager.setConfiguration(group, "showOverlay", s.showOverlay);
+        configManager.setConfiguration(group, "showLabel", s.showLabel);
+        configManager.setConfiguration(group, "showSeconds", s.showSeconds);
+        configManager.setConfiguration(group, "ignoreLms", s.ignoreLms);
+        configManager.setConfiguration(group, "ignoreArena", s.ignoreArena);
+        configManager.setConfiguration(group, "backgroundOpacity", s.opacity);
+        configManager.setConfiguration(group, "textColor", s.colour);
+        publish(); notifyPanel("Options applied");
+    }
+
+    private void notifyPanel(String text)
+    {
+        SwingUtilities.invokeLater(() -> { if (panel != null) { panel.message(text); } });
+    }
+
+    private void publish()
+    {
+        ViewSettings settings = config == null ? new ViewSettings() : ViewSettings.from(config);
+        currentView = new TrackerView(loggedIn ? loadedProfile : null, character,
+                collecting && state != null ? state.copy() : null, now(),
+                error != null ? error : collecting ? "Loading character…" : "Log in to begin", settings);
     }
 
     long now() { return clock.millis(); }
-
-    DeathRecord visibleRecord() { return loggedIn ? record : null; }
-
-    private void refreshPanel()
+    TrackerState visibleRecord() { return view().state; }
+    TrackerView view()
     {
-        DeathRecord current = visibleRecord();
-        heading.setText(current == null ? "Days Since Death" : character);
-        elapsed.setText(current == null
-                ? error != null ? "Record unavailable" : loggedIn ? "Loading character…" : "Log in to begin"
-                : config.displayUnit().format(current.elapsed(now())));
-        elapsed.setToolTipText(elapsed.getText());
-        best.setText(current == null ? "" : current.lastDeath == 0 ? "No full streak recorded yet" : "Best: " + config.displayUnit().format(current.best(now())));
-        best.setToolTipText(best.getText());
-        if (current == null)
-        {
-            last.setText(error == null ? "Waiting for your character." : error);
-            count.setText("");
-            return;
-        }
-        long date = current.lastDeath == 0 ? current.trackingStarted : current.lastDeath;
-        String stamp = Instant.ofEpochMilli(date).atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("MMM d, yyyy HH:mm"));
-        last.setText("<html>" + (current.lastDeath == 0 ? "Tracking started" : "Last observed death") + "<br>" + stamp + "</html>");
-        count.setText("Observed deaths: " + current.deaths);
+        TrackerView v = currentView;
+        return v == null ? new TrackerView(null, "", null, now(), "Log in to begin", new ViewSettings()) : v;
     }
 
     private static void onEdt(Runnable action) throws Exception

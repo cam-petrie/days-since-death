@@ -8,6 +8,11 @@ public enum DisplayUnit
 
     public String format(long millis)
     {
+        return format(millis, true);
+    }
+
+    public String format(long millis, boolean showSeconds)
+    {
         long seconds = Math.max(0, millis / 1000);
         if (this != AUTOMATIC)
         {
@@ -22,6 +27,6 @@ public enum DisplayUnit
         if (days >= 7) { return days / 7 + "w " + days % 7 + "d " + hours + "h"; }
         if (days > 0) { return days + "d " + hours + "h " + minutes + "m"; }
         if (hours > 0) { return hours + "h " + minutes + "m"; }
-        return minutes + "m " + seconds % 60 + "s";
+        return showSeconds ? minutes + "m " + seconds % 60 + "s" : minutes + "m";
     }
 }

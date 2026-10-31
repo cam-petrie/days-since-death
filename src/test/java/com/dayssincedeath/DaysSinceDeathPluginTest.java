@@ -35,16 +35,17 @@ public class DaysSinceDeathPluginTest
         plugin.client = mock(Client.class);
         plugin.configManager = mock(ConfigManager.class);
         plugin.gson = new Gson();
+        plugin.config = new DaysSinceDeathConfig() {};
         plugin.clock = Clock.fixed(Instant.ofEpochMilli(START), ZoneOffset.UTC);
         local = mock(Player.class);
         when(plugin.client.getLocalPlayer()).thenReturn(local);
         when(plugin.client.getGameState()).thenReturn(GameState.LOGGED_IN);
         when(local.getName()).thenReturn("Test character");
         when(plugin.configManager.getRSProfileKey()).thenAnswer(inv -> profile.get());
-        when(plugin.configManager.getRSProfileConfiguration("dayssincedeath", "record"))
-                .thenAnswer(inv -> storage.get(profile.get()));
-        doAnswer(inv -> { storage.put(profile.get(), inv.getArgument(2)); return null; })
-                .when(plugin.configManager).setRSProfileConfiguration(eq("dayssincedeath"), eq("record"), anyString());
+        when(plugin.configManager.getConfiguration(eq(DaysSinceDeathConfig.GROUP), anyString(), eq(DaysSinceDeathPlugin.STATE_KEY)))
+                .thenAnswer(inv -> storage.get(inv.getArgument(1)));
+        doAnswer(inv -> { storage.put(inv.getArgument(1), inv.getArgument(3)); return null; })
+                .when(plugin.configManager).setConfiguration(eq(DaysSinceDeathConfig.GROUP), anyString(), eq(DaysSinceDeathPlugin.STATE_KEY), anyString());
     }
 
     @Test
@@ -103,5 +104,56 @@ public class DaysSinceDeathPluginTest
         when(plugin.client.getGameState()).thenReturn(GameState.LOGIN_SCREEN);
         plugin.onActorDeath(new ActorDeath(local));
         assertTrue(storage.isEmpty());
+    }
+
+    @Test
+    public void previewSeedsOriginalDataWithoutWritingItsConfigurationGroup()
+    {
+        DeathRecord original = DeathRecord.start(START).died(START);
+        String originalJson = plugin.gson.toJson(original);
+        when(plugin.configManager.getConfiguration("dayssincedeath", "character-a", "record")).thenReturn(originalJson);
+        plugin.ensureProfile();
+        assertEquals(1, plugin.visibleRecord().deaths);
+        assertTrue(plugin.visibleRecord().playtimePartial);
+        plugin.onActorDeath(new ActorDeath(local));
+        verify(plugin.configManager, never()).setConfiguration(eq("dayssincedeath"), anyString(), anyString(), anyString());
+        assertEquals(originalJson, plugin.configManager.getConfiguration("dayssincedeath", "character-a", "record"));
+    }
+
+    @Test
+    public void loggedInTimeExcludesLogoutAndResumesWithCoverageGap()
+    {
+        plugin.ensureProfile();
+        plugin.clock = Clock.fixed(Instant.ofEpochMilli(START + 600), ZoneOffset.UTC);
+        plugin.onGameTick(new GameTick());
+        assertEquals(600, plugin.visibleRecord().loggedMillis);
+        when(plugin.client.getGameState()).thenReturn(GameState.LOGIN_SCREEN);
+        plugin.ensureProfile();
+        plugin.clock = Clock.fixed(Instant.ofEpochMilli(START + 3_600_000), ZoneOffset.UTC);
+        when(plugin.client.getGameState()).thenReturn(GameState.LOGGED_IN);
+        plugin.ensureProfile();
+        assertEquals(600, plugin.visibleRecord().loggedMillis);
+        assertEquals(1, plugin.visibleRecord().gaps.size());
+    }
+
+    @Test
+    public void delayedActionCannotModifyAnotherCharacter()
+    {
+        plugin.ensureProfile();
+        profile.set("character-b"); plugin.ensureProfile();
+        java.util.concurrent.atomic.AtomicBoolean ran = new java.util.concurrent.atomic.AtomicBoolean();
+        assertFalse(plugin.applyEdit("character-a", () -> ran.set(true), false));
+        assertFalse(ran.get()); assertEquals(0, plugin.visibleRecord().deaths);
+    }
+
+    @Test
+    public void lmsExclusionRecordsHistoryWithoutResettingCurrentStreak()
+    {
+        plugin.config = new DaysSinceDeathConfig() { @Override public boolean ignoreLms() { return true; } };
+        when(plugin.client.getWorldType()).thenReturn(java.util.EnumSet.of(net.runelite.api.WorldType.LAST_MAN_STANDING));
+        plugin.ensureProfile(); plugin.onActorDeath(new ActorDeath(local));
+        assertEquals(0, plugin.visibleRecord().deaths);
+        assertEquals(1, plugin.visibleRecord().ignoredDeaths);
+        assertEquals("IGNORED", plugin.visibleRecord().history.get(0).type);
     }
 }
