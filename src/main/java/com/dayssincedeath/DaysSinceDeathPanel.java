@@ -82,7 +82,7 @@ final class DaysSinceDeathPanel extends PluginPanel
             }
         });
         JPanel header = vertical();
-        JLabel preview = new JLabel("LOCAL PREVIEW");
+        JLabel preview = new JLabel("DAYS SINCE DEATH");
         preview.setForeground(new Color(213, 185, 119));
         counter.setFont(counter.getFont().deriveFont(Font.BOLD, 22f));
         header.add(preview); header.add(title); header.add(counter);
@@ -242,7 +242,7 @@ final class DaysSinceDeathPanel extends PluginPanel
         recover.setEnabled(next.profile != null);
         if (!available)
         {
-            summary.setText(next.message + "\n\nPreview records are separate from the published plugin.");
+            summary.setText(next.message + "\n\nYour character record appears here once it has loaded.");
             coverage.setText("Log in to view character coverage, or use the offline sample preview.");
             historyModel.clear(); historySignature = "";
             note.setText(""); saveNote.setEnabled(false);
@@ -257,7 +257,7 @@ final class DaysSinceDeathPanel extends PluginPanel
                 + "\nLast death: " + (s.lastDeath == 0 ? "Unknown" : stamp(s.lastDeath))
                 + "\nDate source: " + (s.lastDeath == 0 ? "Not established" : s.manualDate ? "Manually supplied" : "Observed")
                 + (s.corrected ? "\nRecord has user corrections." : "")
-                + "\n\nLogged-in time is measured only while this preview runs. Offline time does not count toward it.");
+                + "\n\nLogged-in time is measured only while this plugin runs. Offline time does not count toward it.");
         StringBuilder gaps = new StringBuilder("Tracking began: " + stamp(s.trackingStarted)
                 + "\nLast observed online: " + stamp(s.lastSeen)
                 + "\nTotal observed playtime: " + DisplayUnit.AUTOMATIC.format(s.loggedMillis)
@@ -325,7 +325,7 @@ final class DaysSinceDeathPanel extends PluginPanel
             String preview = "Backup character: " + backup.character + "\nTarget character: " + captured.character
                     + "\nLast death: " + (backup.state.lastDeath == 0 ? "Unknown" : stamp(backup.state.lastDeath))
                     + "\nCounted deaths: " + backup.state.deaths + "\nHistory entries: " + backup.state.history.size()
-                    + "\n\nReplace this character's LOCAL PREVIEW record?\nA recovery snapshot of the current preview record is kept.";
+                    + "\n\nReplace this character's saved death record?\nA recovery snapshot of the current record is kept.";
             if (JOptionPane.showConfirmDialog(this, preview, "Preview backup restore", JOptionPane.YES_NO_OPTION) == JOptionPane.YES_OPTION)
             { actions.restore(captured.profile, backup.state); }
         });

@@ -1,111 +1,111 @@
-# Days Since Death — local preview
+# Days Since Death
 
-This working branch contains the **local v2 preview** requested on October 31,
-2026. Nothing from this preview has been pushed to GitHub or submitted to the
-RuneLite Plugin Hub. The published plugin remains unchanged.
+A RuneLite plugin by **sheriff-cam** that records your own observed deaths and
+shows elapsed time since the last one. Records are separate for each character.
 
-## View it without logging in
+## Version 2 features
+
+- Compact, content-sized counter with a full **Last Death** label, **LD**, clock
+  icon, clock + LD, or no label. Choose text colour and background opacity.
+- Automatic time breakdown or total hours, days, weeks, and 365-day years.
+  Automatic format can show seconds at every duration; total-unit formats stay numeric.
+- Real-world elapsed time or observed logged-in survival time, with personal bests.
+- Optional exclusions for deaths on dedicated Last Man Standing and PvP Arena
+  worlds. All other contexts count. Excluded deaths remain in history.
+- Up to 100 recent death/correction events with dates, region/tile coordinates,
+  previous streak lengths, and editable personal notes (up to 500 characters).
+- Undo the latest counted death after two confirmation prompts. The event remains
+  in history as UNDONE, and the record is labelled as user-corrected.
+- Manually supply a known last-death date, labelled as manual. Future dates are
+  rejected, and unknown historical logged-in time is never invented.
+- JSON backup export, validated restore with a character/data preview, and a
+  recovery snapshot of the record from before the last restore.
+- Tracking coverage: last seen online, observed playtime, and the most recent
+  20 unobserved intervals. Ordinary offline time also produces gaps.
+- Manually generated PNG streak cards with a preview and character name hidden
+  by default. Cards and backups are saved only to destinations you select.
+
+## Use
+
+Install **Days Since Death** from RuneLite's Plugin Hub. Open the clock sidebar
+for the Record, Log, Gaps, and Setup tabs. Display toggles apply immediately;
+use Apply options after adjusting the colour or opacity. The native plugin
+settings also expose the counter and exclusion preferences.
+
+Before the first observed or manually supplied death, the counter says Unknown.
+The sidebar separately shows time since tracking began. A `+` on observed playtime
+means the earlier part of that streak was not measured (for example, after a
+version 1 migration or manually entered date).
+
+## Accuracy, storage, and migration
+
+Real-world time includes time logged out. Logged-in time measures only intervals
+observed while the plugin is active; loading/hopping interruptions, offline time,
+and long stalls do not accrue it. Years are 365-day durations, not anniversaries.
+
+The plugin cannot recover deaths before installation, while it is disabled, or
+on another client/device without the plugin. A coverage gap does not prove a
+death occurred. No killer or cause is guessed from combat events.
+
+Character data uses RuneLite's standard configuration storage and its usual
+account-sync behaviour. The plugin has no separate service or network client.
+Backups include character names and personal notes; anonymous PNG cards do not.
+
+Version 2 first loads an existing v2 record. Otherwise it migrates the published
+v1 last-death timestamp, count, and best recorded interval into a separate v2
+configuration key. The original v1 value is preserved. Historical logged-in time
+and detailed history cannot be recovered from v1. Invalid saved data is left
+untouched rather than silently reset.
+
+Experimental `dayssincedeathlocal` data is not automatically imported into the
+release. To bring across a preview record, export its JSON backup in the preview
+and explicitly restore it in the release. The restore dialog shows the source
+and target character before replacement.
+
+## Development
+
+Requires Java 11+, with Java 17 or 21 recommended for development. The macOS
+Java desktop module flag is configured automatically.
+
+```sh
+./gradlew test jar
+./gradlew run
+```
+
+The development client uses the normal RuneLite configuration directory. Enable
+Days Since Death in plugin settings. For Jagex Accounts, use the client's Jagex
+Accounts sidebar; see [RuneLite's official login guide](https://github.com/runelite/runelite/wiki/Using-Jagex-Accounts).
+
+The artifact is `build/libs/days-since-death-2.0.0.jar`. It is a plugin, not a
+standalone game client. Updates reach the Plugin Hub after maintainer review.
+
+## Offline sample interface
 
 ```sh
 ./gradlew preview
 ```
 
-This opens a standalone sample interface. It never starts RuneLite, logs into
-an account, or reads/writes any RuneLite character record. Sample counted and
-LMS deaths, undo, manual dates, notes, settings, backup/restore, and card export
-can all be exercised here. Sample edits stay in memory; exported files are
-written only when you choose a destination. Reset samples restores the fixture.
-
-## What is included
-
-1. **Safe-death exclusions:** optional dedicated Last Man Standing and PvP Arena
-   world exclusions. Defaults still count all deaths. This is not a universal
-   safe-death detector: other minigames, practice modes, ordinary PvP worlds,
-   and unrecognised contexts still count. Excluded events remain in history.
-2. **Undo:** restore the streak before the most recent counted death. The event
-   remains in history as `UNDONE`; personal-best and playtime values are restored,
-   including observed playtime accumulated since that death. Corrections are labelled.
-3. **Manual dates:** enter a known date in local time (`yyyy-MM-dd HH:mm`). Future
-   dates are rejected. Manually supplied dates are labelled, not represented as
-   observed events. Historical logged-in time is not invented: it starts at zero
-   and is marked partial with `+`.
-4. **Logged-in survival time:** choose real-world elapsed time or time actually
-   observed logged in. Offline time, loading/hopping interruptions, and long
-   stalls do not accrue logged-in time. Best observed playtime is tracked too.
-5. **History:** the newest 100 events with dates, observed region/tile coordinates,
-   prior streaks, event type, and editable notes up to 500 characters. No killer
-   or cause is guessed from combat events.
-6. **Backup/restore:** user-selected JSON files with validation and a preview of
-   character, last death, count, and history before replacement. A recovery
-   snapshot is kept before restoring; use **Recover pre-restore record** to restore
-   it. File work runs off the game/UI threads. Backups include names and notes.
-7. **Coverage:** last observed online time and the most recent 20 unobserved
-   intervals. Ordinary offline time is included in these gaps; a gap does not
-   imply a death happened. Deaths on mobile/other clients remain unknown.
-8. **Compact display:** full label, `LD`, clock icon, clock + `LD`, or no label;
-   seconds, text colour, background opacity,
-   selected duration units, wall-clock/logged-in basis, and a hover tooltip. The
-   in-game box remains a single line. The sidebar includes a counter preview.
-   Automatic format includes seconds at every duration when enabled. Total-unit
-   formats remain numeric and disable the seconds checkbox in Setup. Label and
-   seconds toggles apply immediately; hiding the label also removes its space.
-9. **Streak card:** manually preview and save a PNG. Character name is hidden by
-   default; there is no upload or automatic sharing. The card identifies manual
-   dates/corrections and explains observation limits.
-
-## Local RuneLite development build
-
-```sh
-./gradlew run
-```
-
-The development client loads **Days Since Death (Local Preview)**. It uses the
-normal RuneLite profile directory, so existing profiles remain available.
-If the published version is also installed, its counter may also be visible;
-you can manually disable that version in this development client if desired.
-The preview never changes other plugins' settings.
-
-The preview stores character data under `dayssincedeathlocal`, separate from
-the published plugin's `dayssincedeath` records. On first use it copies an
-existing published timestamp read-only, preserving the original. Existing v1
-playtime and coverage are unknown and labelled accordingly. The settings/data
-still use RuneLite's standard configuration storage, so RuneLite's own account
-sync may apply; “local preview” means unpublished source, not a separate cloud
-service or a guarantee that RuneLite will never sync its configuration.
-
-No gameplay automation, additional boss cues, window manipulation, notifications,
-or gameplay/network actions have been added. The changes have not been reviewed
-or approved for the Plugin Hub. Account safety guidance remains in [AGENTS.md](AGENTS.md).
-Use the offline sample preview for evaluation without interacting with a game world.
-
-For a Jagex Account, the development client's Jagex Accounts sidebar handles
-login; see [RuneLite's official instructions](https://github.com/runelite/runelite/wiki/Using-Jagex-Accounts).
-
-## Build and verification
-
-Requires Java 11+, with Java 17 or 21 recommended for development. The macOS
-Java desktop module flag is configured for the game launcher.
-
-```sh
-./gradlew test jar
-```
-
-The local artifact is `build/libs/days-since-death-2.0.0-local.jar`.
-Tests use synthetic events and records, with no deliberate live-account deaths.
-They cover original duration/streak behaviour, v1 migration, separate character
-storage, original-record isolation, logged-in time, undo, manual dates, exclusions,
-coverage limits, notes, history bounds, backup validation, and anonymous cards.
-
-To render screenshots of the offline interface without opening a window:
+This opens a standalone sample interface without starting RuneLite or reading
+or writing a character profile. Sample edits remain in memory; exports only
+write files you explicitly choose. Sample death buttons do not interact with
+RuneScape. To render reference images instead of opening a window:
 
 ```sh
 ./gradlew preview --args="--render=/tmp/days-since-death-preview"
 ```
 
-`docs/ci-workflow.example.yml` remains an optional workflow template; it has not
-been activated or uploaded. This local working branch is `codex/local-improvements`.
+Tests use synthetic records and events. They cover streaks, durations, display
+geometry, migrations, character switching, production/experimental-data isolation,
+logged-in time, undo, exclusions, bounded history, invalid backups, and anonymous
+cards. No deliberate live-account deaths are required.
+
+The scope is historical statistics only: no gameplay inputs, extra boss cues,
+notifications, window manipulation, chat changes, or runtime network requests.
+See [AGENTS.md](AGENTS.md) for development constraints and [CHANGELOG.md](CHANGELOG.md)
+for release notes. The optional workflow in `docs/ci-workflow.example.yml` has
+not been activated; local checks and RuneLite's submission pipeline verify builds.
 
 ## License
 
-BSD 2-Clause. The Gradle wrapper comes from the RuneLite example-plugin setup
-and Gradle; its embedded notices apply. No third-party audio or images are bundled.
+BSD 2-Clause. Gradle wrapper notices apply to the wrapper. No third-party audio
+or images are bundled.

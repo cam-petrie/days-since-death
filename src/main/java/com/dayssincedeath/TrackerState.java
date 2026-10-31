@@ -4,7 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
-/** V2 preview data. Mutations belong to the client thread; views receive copies. */
+/** Version 2 character data. Mutations belong to the client thread; views receive copies. */
 final class TrackerState
 {
     static final int HISTORY_LIMIT = 100;

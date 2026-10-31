@@ -107,7 +107,7 @@ public class DaysSinceDeathPluginTest
     }
 
     @Test
-    public void previewSeedsOriginalDataWithoutWritingItsConfigurationGroup()
+    public void versionTwoMigratesVersionOneWithoutOverwritingOriginalRecord()
     {
         DeathRecord original = DeathRecord.start(START).died(START);
         String originalJson = plugin.gson.toJson(original);
@@ -116,8 +116,49 @@ public class DaysSinceDeathPluginTest
         assertEquals(1, plugin.visibleRecord().deaths);
         assertTrue(plugin.visibleRecord().playtimePartial);
         plugin.onActorDeath(new ActorDeath(local));
-        verify(plugin.configManager, never()).setConfiguration(eq("dayssincedeath"), anyString(), anyString(), anyString());
+        verify(plugin.configManager, never()).setConfiguration(eq("dayssincedeath"), anyString(), eq("record"), anyString());
         assertEquals(originalJson, plugin.configManager.getConfiguration("dayssincedeath", "character-a", "record"));
+    }
+
+    @Test
+    public void existingProductionVersionTwoTakesPrecedenceOverOldAndExperimentalData()
+    {
+        TrackerState production = TrackerState.start(START);
+        production.died(START, "Production", null);
+        production.died(START, "Production", null);
+        storage.put("character-a", plugin.gson.toJson(production));
+        when(plugin.configManager.getConfiguration("dayssincedeath", "character-a", "record"))
+                .thenReturn(plugin.gson.toJson(DeathRecord.start(START)));
+        when(plugin.configManager.getConfiguration("dayssincedeathlocal", "character-a", DaysSinceDeathPlugin.STATE_KEY))
+                .thenReturn("{untrusted experimental data}");
+        plugin.ensureProfile();
+        assertEquals(2, plugin.visibleRecord().deaths);
+        assertEquals("Production", plugin.visibleRecord().history.get(0).location);
+        verify(plugin.configManager, never()).getConfiguration("dayssincedeathlocal", "character-a", DaysSinceDeathPlugin.STATE_KEY);
+        verify(plugin.configManager, never()).getConfiguration("dayssincedeath", "character-a", "record");
+    }
+
+    @Test
+    public void corruptedVersionTwoDoesNotSilentlyRevertToOlderVersionOne()
+    {
+        storage.put("character-a", "{invalid}");
+        when(plugin.configManager.getConfiguration("dayssincedeath", "character-a", "record"))
+                .thenReturn(plugin.gson.toJson(DeathRecord.start(START)));
+        plugin.ensureProfile();
+        assertNull(plugin.visibleRecord());
+        assertEquals("{invalid}", storage.get("character-a"));
+        verify(plugin.configManager, never()).getConfiguration("dayssincedeath", "character-a", "record");
+    }
+
+    @Test
+    public void invalidLegacyRecordIsPreservedWithoutCreatingVersionTwo()
+    {
+        String original = plugin.gson.toJson(DeathRecord.start(START + 86_400_000));
+        when(plugin.configManager.getConfiguration("dayssincedeath", "character-a", "record")).thenReturn(original);
+        plugin.ensureProfile();
+        assertNull(plugin.visibleRecord());
+        assertTrue(storage.isEmpty());
+        verify(plugin.configManager, never()).setConfiguration(eq("dayssincedeath"), anyString(), eq("record"), anyString());
     }
 
     @Test

@@ -30,8 +30,8 @@ import net.runelite.client.ui.overlay.OverlayManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-@PluginDescriptor(name = "Days Since Death (Local Preview)", internalName = "days-since-death-local",
-        description = "Local preview of death history, corrections, backups, and survival time", tags = {"death", "streak", "timer", "statistics"})
+@PluginDescriptor(name = "Days Since Death",
+        description = "Death history, corrections, backups, and survival time", tags = {"death", "streak", "timer", "statistics"})
 public class DaysSinceDeathPlugin extends Plugin
 {
     private static final Logger log = LoggerFactory.getLogger(DaysSinceDeathPlugin.class);
@@ -87,7 +87,7 @@ public class DaysSinceDeathPlugin extends Plugin
             Graphics2D g = icon.createGraphics();
             g.setColor(new Color(220, 190, 115)); g.drawOval(3, 3, 25, 25);
             g.drawLine(16, 7, 16, 16); g.drawLine(16, 16, 23, 19); g.dispose();
-            navigation = NavigationButton.builder().tooltip("Days Since Death · Local Preview")
+            navigation = NavigationButton.builder().tooltip("Days Since Death")
                     .icon(icon).panel(panel).priority(8).build();
             toolbar.addNavigation(navigation);
             uiTimer = new Timer(1000, e -> panel.update(view())); uiTimer.start();
@@ -183,16 +183,17 @@ public class DaysSinceDeathPlugin extends Plugin
                 }
                 else
                 {
-                    // Seed the preview read-only from the published plugin; never write its group.
-                    String original = configManager.getConfiguration("dayssincedeath", key, "record");
+                    // Upgrade the published v1 record without overwriting the original value.
+                    String original = configManager.getConfiguration(DaysSinceDeathConfig.GROUP, key, "record");
                     state = original == null ? TrackerState.start(now())
                             : TrackerState.migrate(gson.fromJson(original, DeathRecord.class), now());
                 }
+                state.validate(now());
             }
             catch (RuntimeException e)
             {
                 state = null; error = "Saved record unreadable; left untouched.";
-                log.warn("Could not load Days Since Death preview record", e);
+                log.warn("Could not load Days Since Death record", e);
             }
         }
         Player player = client.getLocalPlayer();
@@ -248,7 +249,7 @@ public class DaysSinceDeathPlugin extends Plugin
                 { throw new IllegalStateException("Character changed. Reopen the action for the current character."); }
                 if (state == null && !allowMissing) { throw new IllegalStateException("No readable record is loaded"); }
                 heartbeat(); previous = state == null ? null : state.copy();
-                mutation.run(); state.validate(now()); save(); publish(); notifyPanel("Saved locally for this preview");
+                mutation.run(); state.validate(now()); save(); publish(); notifyPanel("Record saved");
                 return true;
             }
             catch (RuntimeException e) { state = previous; publish(); notifyPanel(e.getMessage()); return false; }

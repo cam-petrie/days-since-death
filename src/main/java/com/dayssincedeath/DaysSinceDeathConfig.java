@@ -9,7 +9,7 @@ import java.awt.Color;
 @ConfigGroup(DaysSinceDeathConfig.GROUP)
 public interface DaysSinceDeathConfig extends Config
 {
-    String GROUP = "dayssincedeathlocal";
+    String GROUP = "dayssincedeath";
 
     @ConfigItem(keyName = "showOverlay", name = "Show counter", description = "Show the historical counter on the game view", position = 0)
     default boolean showOverlay() { return true; }

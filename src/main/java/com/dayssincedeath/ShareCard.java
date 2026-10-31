@@ -38,7 +38,7 @@ final class ShareCard
         g.drawString(source + (s.corrected ? " · User-corrected record" : ""), 80, 428);
         g.drawString("Deaths outside tracking are unknown. + means partial playtime.", 80, 461);
         String date = Instant.ofEpochMilli(view.now).atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("MMM d, yyyy"));
-        g.drawString("Generated " + date + " · sheriff-cam · Local preview", 80, 504);
+        g.drawString("Generated " + date + " · sheriff-cam", 80, 504);
         g.dispose();
         return image;
     }
